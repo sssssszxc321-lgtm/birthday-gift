@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17102e">
+<title>Для тебя ❤️</title><link rel="stylesheet" href="/style.css">
+</head>
+<body class="gift-page">
+<div class="ambient a1"></div><div class="ambient a2"></div>
+<main class="gift-wrap">
+<section id="loading" class="glass gift-card">
+<div class="big-emoji">💌</div><h1>Для тебя есть подарок</h1><p id="loadingText">Сейчас всё откроется…</p>
+</section>
+<section id="intro" class="glass gift-card hidden">
+<div class="eyebrow">СДЕЛАНО СПЕЦИАЛЬНО ДЛЯ ТЕБЯ</div>
+<div class="gift-illustration" id="giftButton" role="button" tabindex="0" aria-label="Открыть подарок">
+<div class="gift-box"><span class="gift-ribbon"></span><span class="gift-bow">🎀</span></div>
+</div>
+<h1>Для тебя, <span id="introName">солнышко</span> ❤️</h1>
+<p class="intro">Я приготовил кое-что особенное…</p>
+<button class="primary" id="openButton">Открыть подарок ✨</button>
+</section>
+<section id="letter" class="glass gift-card hidden">
+<div class="eyebrow">С ДНЁМ РОЖДЕНИЯ</div>
+<div class="big-emoji">🎂</div>
+<h1>С днём рождения, <span id="recipient">солнышко</span>!</h1>
+<p class="lead">Сегодня весь мир будто стал чуточку ярче, потому что в нём есть ты.</p>
+<div id="gallery" class="gallery hidden">
+<div class="photo-frame"><img id="mainPhoto" alt="Наше воспоминание"></div>
+<div id="dots" class="dots"></div>
+<div class="gallery-controls"><button class="secondary" id="prevPhoto" aria-label="Предыдущее фото">←</button><span id="photoCount"></span><button class="secondary" id="nextPhoto" aria-label="Следующее фото">→</button></div>
+</div>
+<div id="message" class="message"></div>
+<button id="musicButton" class="secondary music-button hidden">♫ Включить нашу песню</button>
+<p class="signature">Обнимаю крепко-крепко ❤️</p>
+<button class="text-button" id="replayButton">Посмотреть ещё раз ↺</button>
+</section>
+<p class="tiny">С любовью, от человека, которому ты очень дорога ✨</p>
+</main>
+<audio id="music" loop preload="none"></audio>
+<script>
+const params = new URLSearchParams(location.search);
+const id = params.get('id');
+const loading = document.querySelector('#loading');
+const intro = document.querySelector('#intro');
+const letter = document.querySelector('#letter');
+const loadingText = document.querySelector('#loadingText');
+let gift = null, photoIndex = 0, opened = false;
+function show(el) { [loading, intro, letter].forEach(x => x.classList.add('hidden')); el.classList.remove('hidden'); }
+function text(id, value) { document.getElementById(id).textContent = value; }
+function renderPhoto() {
+  if (!gift?.photos?.length) return;
+  const photos = gift.photos;
+  photoIndex = (photoIndex + photos.length) % photos.length;
+  document.querySelector('#mainPhoto').src = photos[photoIndex];
+  text('photoCount', `${photoIndex + 1} / ${photos.length}`);
+  const dots = document.querySelector('#dots');
+  dots.replaceChildren();
+  photos.forEach((_, i) => {
+    const b = document.createElement('button');
+    b.className = 'dot' + (i === photoIndex ? ' active' : '');
+    b.setAttribute('aria-label', `Фото ${i + 1}`);
+    b.addEventListener('click', () => { photoIndex = i; renderPhoto(); });
+    dots.appendChild(b);
+  });
+}
+async function loadGift() {
+  if (!id) {
+    show(intro);
+    text('introName', 'солнышко');
+    document.querySelector('#openButton').onclick = () => location.href = '/create.html';
+    document.querySelector('#giftButton').onclick = () => location.href = '/create.html';
+    document.querySelector('#giftButton').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') location.href = '/create.html'; };
+    text('loadingText', 'Создай свою открытку и отправь её любимому человеку.');
+    return;
+  }
+  try {
+    const response = await fetch(`/api/gift?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Подарок не найден.');
+    gift = data;
+    text('introName', gift.name || 'солнышко');
+    text('recipient', gift.name || 'солнышко');
+    document.title = `Для ${gift.name || 'тебя'} ❤️`;
+    const msg = gift.message || 'Пусть каждый день приносит тебе улыбки, тепло и поводы мечтать. Ты заслуживаешь всего самого прекрасного ❤️';
+    document.querySelector('#message').textContent = msg;
+    if (gift.photos?.length) { document.querySelector('#gallery').classList.remove('hidden'); renderPhoto(); }
+    if (gift.music) {
+      const audio = document.querySelector('#music');
+      audio.src = gift.music;
+      document.querySelector('#musicButton').classList.remove('hidden');
+      document.querySelector('#musicButton').onclick = async () => {
+        try {
+          if (audio.paused) { await audio.play(); text('musicButton', 'Ⅱ Пауза'); }
+          else { audio.pause(); text('musicButton', '♫ Включить нашу песню'); }
+        } catch { text('musicButton', 'Нажми ещё раз для запуска музыки'); }
+      };
+    }
+    show(intro);
+  } catch (error) {
+    show(loading);
+    text('loadingText', error.message || 'Не удалось загрузить подарок. Проверь ссылку и попробуй ещё раз.');
+  }
+}
+async function openGift() {
+  if (opened) return;
+  opened = true;
+  show(letter);
+}
+document.querySelector('#openButton').addEventListener('click', openGift);
+document.querySelector('#giftButton').addEventListener('click', openGift);
+document.querySelector('#giftButton').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openGift(); });
+document.querySelector('#prevPhoto').addEventListener('click', () => { photoIndex--; renderPhoto(); });
+document.querySelector('#nextPhoto').addEventListener('click', () => { photoIndex++; renderPhoto(); });
+document.querySelector('#replayButton').addEventListener('click', () => { opened = false; show(intro); });
+loadGift();
+</script>
+</body>
+</html>
